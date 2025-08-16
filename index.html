@@ -1,0 +1,220 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Interactive Map Explorer</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/index.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "@google/genai": "https://esm.sh/@google/genai@^0.7.0"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <!-- Main container for the map and related UI elements -->
+    <div id="map-container" class="map-container">
+      <div id="map"></div>
+
+      <!-- Container for search elements positioned at the top -->
+      <div class="search-container">
+        <!-- Toggle switch for enabling/disabling Day Planner Mode -->
+        <div class="mode-toggle">
+          <label class="switch">
+            <input type="checkbox" id="planner-mode-toggle" />
+            <span class="slider round"></span>
+          </label>
+          <span class="mode-label">Day Planner Mode</span>
+        </div>
+        
+        <!-- Prompt for user to select a location source for the planner -->
+        <div id="location-prompt" class="location-prompt hidden">
+          <button id="use-gps-location" class="location-prompt-btn">
+            <i class="fas fa-location-arrow"></i> Use Current Location
+          </button>
+          <button id="set-manual-location" class="location-prompt-btn">
+            <i class="fas fa-map-marker-alt"></i> Set a Starting Point
+          </button>
+        </div>
+
+        <div class="search-bar">
+          <i class="fas fa-search search-icon"></i>
+          <textarea
+            id="prompt-input"
+            placeholder="Explore places, history, events, or ask about any location..."
+          ></textarea>
+          <button id="generate" class="search-button">
+            <i class="fas fa-arrow-right"></i>
+            <div class="spinner"></div>
+          </button>
+        </div>
+
+        <div class="error" id="error-message"></div>
+      </div>
+
+      <!-- Carousel for displaying location cards at the bottom -->
+      <div class="card-carousel">
+        <div class="card-container" id="card-container">
+          <!-- Location cards will be dynamically inserted here by the script -->
+        </div>
+        <div class="carousel-controls">
+          <button class="carousel-arrow prev" id="prev-card">
+            <i class="fas fa-chevron-left"></i>
+          </button>
+          <div class="carousel-indicators" id="carousel-indicators">
+            <!-- Indicator dots will be added dynamically -->
+          </div>
+          <button class="carousel-arrow next" id="next-card">
+            <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Floating Action Buttons -->
+      <div class="fab-container">
+        <button id="settings-button" class="fab">
+          <i class="fas fa-cog"></i>
+        </button>
+        <button id="reset" class="fab">
+          <i class="fas fa-undo"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Semi-transparent overlay displayed when timeline is open on mobile -->
+    <div class="map-overlay" id="map-overlay"></div>
+
+    <!-- Sliding panel for displaying the day plan timeline -->
+    <div class="timeline-container" id="timeline-container">
+      <!-- Button to toggle timeline visibility on mobile -->
+      <button id="timeline-toggle" class="timeline-toggle">
+        <i class="fas fa-calendar-alt"></i>
+      </button>
+
+      <div class="timeline-header">
+        <h3>Your Day Plan</h3>
+        <div class="timeline-actions">
+          <button id="export-plan" class="export-button">
+            <i class="fas fa-download"></i> Export
+          </button>
+          <button id="close-timeline" class="close-button">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+      <div class="timeline" id="timeline">
+        <!-- Timeline items representing the day plan will be inserted here -->
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <button class="close-modal-button" id="close-settings-button">&times;</button>
+        <h2>Smart Plan Settings</h2>
+        
+        <div class="setting-item">
+          <label>Transport Mode</label>
+          <div class="radio-group">
+            <input type="radio" id="transport-walk" name="transport" value="walk" checked>
+            <label for="transport-walk"><i class="fas fa-walking"></i> Walk</label>
+            <input type="radio" id="transport-transit" name="transport" value="public_transport">
+            <label for="transport-transit"><i class="fas fa-bus"></i> Public Transport</label>
+          </div>
+        </div>
+
+        <div class="setting-item" id="walk-limit-setting">
+          <label for="walk-limit">Max Walking Time</label>
+          <select id="walk-limit">
+            <option value="10">10 minutes</option>
+            <option value="20" selected>20 minutes</option>
+            <option value="30">30 minutes</option>
+          </select>
+        </div>
+        
+        <div class="setting-item">
+          <label for="voice-language">Voice Guide Language</label>
+          <select id="voice-language">
+            <!-- Languages will be populated by script -->
+          </select>
+        </div>
+        
+        <button id="save-settings-button" class="save-button">Save Settings</button>
+      </div>
+    </div>
+    
+    <!-- Manual Location Modal -->
+    <div id="manual-location-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <button class="close-modal-button" id="close-manual-location-button">&times;</button>
+        <h2>Set Starting Point</h2>
+        
+        <div class="setting-item">
+          <label for="place-search-input">Search for a Location</label>
+          <input type="text" id="place-search-input" class="text-input" placeholder="e.g., Eiffel Tower, Paris">
+        </div>
+
+        <div class="coordinate-group">
+          <div class="setting-item">
+            <label for="manual-lat">Latitude</label>
+            <input type="number" id="manual-lat" class="text-input" placeholder="e.g., 48.8584">
+          </div>
+          <div class="setting-item">
+            <label for="manual-lng">Longitude</label>
+            <input type="number" id="manual-lng" class="text-input" placeholder="e.g., 2.2945">
+          </div>
+        </div>
+        
+        <div id="manual-location-error" class="error"></div>
+        
+        <button id="set-location-button" class="save-button">Set Location</button>
+      </div>
+    </div>
+
+    <div id="spinner" class="hidden spinner"></div>
+
+    <!-- End of elements inside map-container -->
+
+    <!-- Google Maps JavaScript API script -->
+    <script>
+      // Script to load the Google Maps JavaScript API asynchronously.
+      ((g) => {
+        var h,
+          a,
+          k,
+          p = "The Google Maps JavaScript API",
+          c = "google",
+          l = "importLibrary",
+          q = "__ib__",
+          m = document,
+          b = window;
+        b = b[c] || (b[c] = {});
+        var d = b.maps || (b.maps = {}),
+          r = new Set(),
+          e = new URLSearchParams(),
+          u = () =>
+            h ||
+            (h = new Promise(async (f, n) => {
+              await (a = m.createElement("script"));
+              e.set("libraries", [...r] + "");
+              for (k in g)
+                e.set(
+                  k.replace(/[A-Z]/g, (t) => "_" + t[0].toLowerCase()),
+                  g[k],
+                );
+              e.set("callback", c + ".maps." + q);
+              a.src = `https://maps.${c}apis.com/maps/api/js?` + e;
+              d[q] = f;
+              a.onerror = () => (h = n(Error(p + " could not load.")));
+              a.nonce = m.querySelector("script[nonce]")?.nonce || "";
+              m.head.append(a);
+            }));
+        d[l]
+          ? console.warn(p + " only loads once. Ignoring:", g)
+          : (d[l] = (f, ...n) => r.add(f) && u().then(() => d[l](f, ...n)));
+      })({ key: "AIzaSyCNXwnZayI7hxvA3huOB9d82myo1L-7j9Y", v: "weekly" });
+    </script>
+  </body>
+</html>
